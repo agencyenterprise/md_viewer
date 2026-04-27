@@ -20,3 +20,4 @@ Resources/vendor/
 *.xcworkspace/
 xcuserdata/
 DerivedData/
+dist/
