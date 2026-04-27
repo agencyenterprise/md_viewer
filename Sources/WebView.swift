@@ -33,13 +33,23 @@ struct MarkdownWebView: NSViewRepresentable {
         func webView(_ webView: WKWebView,
                      decidePolicyFor navigationAction: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-            if navigationAction.navigationType == .linkActivated,
-               let url = navigationAction.request.url {
-                NSWorkspace.shared.open(url)
-                decisionHandler(.cancel)
+            guard navigationAction.navigationType == .linkActivated,
+                  let url = navigationAction.request.url else {
+                decisionHandler(.allow)
                 return
             }
-            decisionHandler(.allow)
+            // In-document anchor navigation. We load HTML with baseURL=nil, so
+            // the document URL is `about:blank` and `[link](#heading)` resolves
+            // to `about:blank#heading`. Let WKWebView handle it (it'll scroll
+            // to the matching id); we must NOT hand `about:` URLs to
+            // NSWorkspace, which has no handler for them.
+            if url.scheme == "about" {
+                decisionHandler(.allow)
+                return
+            }
+            // Anything else (http/https/mailto/file) → system default app.
+            NSWorkspace.shared.open(url)
+            decisionHandler(.cancel)
         }
     }
 }

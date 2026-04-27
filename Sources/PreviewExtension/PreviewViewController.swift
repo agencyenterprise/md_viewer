@@ -46,6 +46,21 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
         }
     }
 
+    func webView(_ webView: WKWebView,
+                 decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        // Allow the initial loadHTMLString and same-document anchor jumps.
+        // External links from inside Quick Look are forwarded to the system
+        // default app rather than swapping out the preview content.
+        if navigationAction.navigationType == .linkActivated,
+           let url = navigationAction.request.url, url.scheme != "about" {
+            NSWorkspace.shared.open(url)
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         finish(error: nil)
     }

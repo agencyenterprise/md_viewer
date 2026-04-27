@@ -44,6 +44,45 @@
       if (typeof marked.setOptions === "function") {
         marked.setOptions({ gfm: true, breaks: false });
       }
+      // marked v12 dropped the `headerIds` option, so anchor links into
+      // the document (e.g. clicking a TOC entry) wouldn't scroll anywhere
+      // because headings render without `id` attributes. Slug each heading
+      // ourselves and add the id, GitHub-style.
+      var slugCounts = {};
+      function slugify(text) {
+        var base = String(text)
+          .toLowerCase()
+          .replace(/<[^>]+>/g, "")          // strip inline html
+          .replace(/[^\wÀ-￿\s-]/g, "")
+          .trim()
+          .replace(/\s+/g, "-");
+        var n = (slugCounts[base] = (slugCounts[base] || 0) + 1);
+        return n === 1 ? base : base + "-" + (n - 1);
+      }
+      if (typeof marked.use === "function") {
+        marked.use({
+          renderer: {
+            heading: function (token) {
+              // marked passes either `(text, level, raw)` (older) or a
+              // token object (v12+). Handle both.
+              var text, level, raw;
+              if (token && typeof token === "object") {
+                level = token.depth;
+                raw = token.raw || token.text || "";
+                text = this.parser
+                  ? this.parser.parseInline(token.tokens)
+                  : token.text;
+              } else {
+                text = arguments[0];
+                level = arguments[1];
+                raw = arguments[2] || arguments[0];
+              }
+              var id = slugify(raw);
+              return "<h" + level + ' id="' + id + '">' + text + "</h" + level + ">\n";
+            }
+          }
+        });
+      }
       html = (typeof marked.parse === "function") ? marked.parse(md) : marked(md);
     } else {
       var pre = document.createElement("pre");
