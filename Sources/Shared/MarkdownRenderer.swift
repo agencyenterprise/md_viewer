@@ -38,22 +38,60 @@ enum MarkdownRenderer {
             .replacingOccurrences(of: "\"__MARKDOWN_PAYLOAD__\"", with: payload)
     }
 
-    /// Rewrites `![alt](path)` markdown image references whose path points to
-    /// a local file into base64-encoded `data:` URLs. Remote (http/https) and
-    /// already-`data:` URLs pass through untouched.
+    /// Rewrites image references whose path points to a local file into
+    /// base64-encoded `data:` URLs. Handles both markdown `![alt](path)` and
+    /// inline HTML `<img src="path">`. Remote (http/https) and already-`data:`
+    /// URLs pass through untouched.
     private static func inlineLocalImages(in markdown: String, baseDirectory: URL?) -> String {
-        // Match ![alt](url) — alt may be empty, url has no whitespace or paren.
-        // (Doesn't try to handle every CommonMark edge case; covers the common
-        // syntax that real-world markdown actually uses.)
-        let pattern = #"!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return markdown }
+        // Pass 1: markdown ![alt](path) — alt may be empty, path has no
+        // whitespace or paren. (Doesn't cover every CommonMark edge case.)
+        var result = rewriteMatches(
+            in: markdown,
+            pattern: #"!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)"#,
+            pathGroup: 2,
+            baseDirectory: baseDirectory
+        ) { full, dataURL, ranges in
+            let alt = String(full[ranges[1]])
+            return "![\(alt)](\(dataURL))"
+        }
 
-        var result = markdown
-        let matches = regex.matches(in: markdown, range: NSRange(markdown.startIndex..., in: markdown))
+        // Pass 2: inline HTML <img src="path" …> — covers both single- and
+        // double-quoted src attributes in any order with the rest of the
+        // attributes preserved.
+        result = rewriteMatches(
+            in: result,
+            pattern: #"(<img\b[^>]*?\bsrc\s*=\s*['"])([^'"]+)(['"][^>]*>)"#,
+            pathGroup: 2,
+            baseDirectory: baseDirectory
+        ) { full, dataURL, ranges in
+            let prefix = String(full[ranges[1]])
+            let suffix = String(full[ranges[3]])
+            return "\(prefix)\(dataURL)\(suffix)"
+        }
+
+        return result
+    }
+
+    /// Generic replace-loop used by `inlineLocalImages`. Walks regex matches
+    /// in reverse so substitutions don't invalidate earlier ranges, reads the
+    /// file at the captured path (skipping remote / data URLs), and asks the
+    /// caller to rebuild the surrounding syntax.
+    private static func rewriteMatches(
+        in source: String,
+        pattern: String,
+        pathGroup: Int,
+        baseDirectory: URL?,
+        rebuild: (Substring, String, [Range<String.Index>]) -> String
+    ) -> String {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return source
+        }
+
+        var result = source
+        let matches = regex.matches(in: source, range: NSRange(source.startIndex..., in: source))
         for match in matches.reversed() {
-            guard let altRange = Range(match.range(at: 1), in: result),
-                  let pathRange = Range(match.range(at: 2), in: result),
-                  let fullRange = Range(match.range, in: result) else { continue }
+            guard let fullRange = Range(match.range, in: result),
+                  let pathRange = Range(match.range(at: pathGroup), in: result) else { continue }
 
             let path = String(result[pathRange])
             if path.hasPrefix("http://") || path.hasPrefix("https://") || path.hasPrefix("data:") {
@@ -72,8 +110,15 @@ enum MarkdownRenderer {
             guard let data = try? Data(contentsOf: imageURL) else { continue }
             let mime = mimeType(forExtension: imageURL.pathExtension)
             let dataURL = "data:\(mime);base64,\(data.base64EncodedString())"
-            let alt = String(result[altRange])
-            result.replaceSubrange(fullRange, with: "![\(alt)](\(dataURL))")
+
+            // Hand the caller the substring + per-group ranges so it can
+            // reconstruct whatever syntax produced the match.
+            var groupRanges: [Range<String.Index>] = []
+            for i in 0..<match.numberOfRanges {
+                groupRanges.append(Range(match.range(at: i), in: result) ?? fullRange)
+            }
+            let replacement = rebuild(result[fullRange], dataURL, groupRanges)
+            result.replaceSubrange(fullRange, with: replacement)
         }
         return result
     }
