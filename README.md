@@ -136,7 +136,7 @@ Then press Space on the same file in Finder to verify the Quick Look path.
 
 ## License
 
-[MIT](LICENSE) © Tiago De Gaspari
+[MIT](LICENSE)
 
 ## Credits
 
