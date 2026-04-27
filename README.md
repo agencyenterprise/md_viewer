@@ -28,9 +28,26 @@ flavor toggle, no settings panel.
 ## Requirements
 
 - macOS 13 (Ventura) or later
-- Xcode Command Line Tools (`xcode-select --install`)
 
-That's it. No Xcode app, no Swift package manager.
+To **build from source** you also need Xcode Command Line Tools
+(`xcode-select --install`). No Xcode app, no Swift package manager.
+
+## Install (prebuilt)
+
+Grab the latest zip from
+[Releases](https://github.com/agencyenterprise/md_viewer/releases/latest):
+
+```sh
+unzip MarkdownViewer-*.zip -d /Applications
+xattr -dr com.apple.quarantine /Applications/MarkdownViewer.app
+open /Applications/MarkdownViewer.app
+```
+
+The `xattr` line removes the quarantine flag macOS attaches to downloaded
+apps. The build is **ad-hoc-signed** (not notarized — that requires a paid
+Apple Developer account), so without that step Gatekeeper will refuse to
+launch it. If you'd rather not run `xattr`, right-click the app the first
+time → *Open* → confirm the dialog; macOS only prompts once.
 
 ## Build & install
 
