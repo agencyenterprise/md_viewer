@@ -1,0 +1,22 @@
+# Build output
+build/
+
+# Vendored JS/CSS — fetched by build.sh on first run
+Resources/vendor/
+
+# macOS metadata
+.DS_Store
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Logs (the QL extension writes here when its diagnostic flag is on)
+*.log
+
+# Xcode (if anyone opens this in Xcode)
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
